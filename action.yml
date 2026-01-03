@@ -17,6 +17,13 @@ runs:
         latest: true
         fileName: '*'
         out-file-path: 'z64packer'
+        
+    - name: Copy scripts to work folder
+      run: |
+        cp -r $GITHUB_ACTION_PATH/src/* z64packer/
+      shell: bash
+      env:
+        GITHUB_ACTION_PATH: ${{ github.action_path }}
 
     - name: Display structure of downloaded files
       run: ls -R
