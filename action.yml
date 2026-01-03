@@ -1,10 +1,26 @@
 name: 'Z64 Packer Release Assets'
 description: 'Action for releasing necessary assets for repository compatibility with Z64 Music Packer'
 inputs:
-  who-to-greet:  # id of input
-    description: 'Who to greet'
+  name:
+    description: 'Name of the music repository'
     required: true
-    default: 'World'
+  description:
+    description: 'Description for the music repository'
+    required: false
+    default: ''
+  binaries-path:
+    description: 'Local path to the music files'
+    required: false
+    default: 'binaries/'
+  previews-path:
+    description: 'Local path to the preview files'
+    required: false
+    default: 'previews/'
+  avatar-url:
+    description: 'URL for an image to use as the repository avatar'
+    required: false
+    default: 'https://github.githubassets.com/images/gravatars/gravatar-user-420.png?size=32'
+    
 runs:
   using: "composite"
   steps:
@@ -21,10 +37,23 @@ runs:
     - name: Copy scripts and show results
       run: |
         cp -r $GITHUB_ACTION_PATH/src/* z64packer/
+        jq --null-input \
+          --arg name "$INPUT_NAME" \
+          --arg description "$INPUT_DESCRIPTION" \
+          --arg binaries "$INPUT_BINARIES" \
+          --arg previews "$INPUT_PREVIEWS" \
+          --arg avatarUrl "$INPUT_AVATAR_URL" \
+          '$ARGS.named' > z64packer/z64musicpacker.properties
         ls -R
+        head z64packer/z64musicpacker.properties
       shell: bash
       env:
         GITHUB_ACTION_PATH: ${{ github.action_path }}
+        INPUT_NAME: ${{ inputs.name }}
+        INPUT_DESCRIPTION: ${{ inputs.description }}
+        INPUT_BINARIES: ${{ inputs.binaries-path }}
+        INPUT_PREVIEWS: ${{ inputs.previews-path }}
+        INPUT_AVATAR_URL: ${{ inputs.avatar-url }}
       
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
