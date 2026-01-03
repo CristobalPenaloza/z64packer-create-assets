@@ -78,6 +78,7 @@ runs:
           z64packer/binaries.zip
           z64packer/z64games.json
           z64packer/z64songs.json
+          z64packer/z64musicpacker.properties
         tag_name: z64packer
         name: Z64 Packer Assets
         draft: false
