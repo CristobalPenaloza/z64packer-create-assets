@@ -1,0 +1,49 @@
+name: 'Z64 Packer Release Assets'
+description: 'Action for releasing necessary assets for repository compatibility with Z64 Music Packer'
+inputs:
+  who-to-greet:  # id of input
+    description: 'Who to greet'
+    required: true
+    default: 'World'
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v3
+
+    - name: Download current release files if there is any
+      uses: robinraju/release-downloader@v1.12
+      with:
+        tag: 'z64packer'
+        latest: true
+        fileName: '*'
+        out-file-path: 'z64packer'
+
+    - name: Display structure of downloaded files
+      run: ls -R
+      
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install Python dependencies
+      uses: py-actions/py-dependency-install@v4
+      with:
+        path: "src/z64_python_requirements.txt"
+
+    - name: Run database fixer
+      run: python "src/z64_database_fixer.py" --ci
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        files: |
+          z64packer/binaries.zip
+          z64packer/z64games.json
+          z64packer/z64songs.json
+        tag_name: z64packer
+        name: Z64 Packer Assets
+        draft: false
+        prerelease: false
