@@ -88,8 +88,9 @@ runs:
           git config --global user.email "<>"
           git config --global --type bool push.autoSetupRemote true
           git switch --orphan ${{ inputs.assets-branch }}
-          cp $RUNNER_TEMP/{binaries.zip,z64games.json,z64songs.json,z64musicpacker.properties} ./
-          git add -A
+          cp -rf $RUNNER_TEMP/{binaries.zip,z64games.json,z64songs.json,z64musicpacker.properties} ./
+          git rm --cached -r .
+          git add binaries.zip z64games.json z64songs.json z64musicpacker.properties
           git commit -m "Z64 Packer Assets for #${{ github.event.number }}"
           git push --force-with-lease
       shell: bash
