@@ -86,6 +86,7 @@ runs:
           cp z64packer/{binaries.zip,z64games.json,z64songs.json,z64musicpacker.properties} $RUNNER_TEMP/
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "<>"
+          git config --global --type bool push.autoSetupRemote true
           git switch --orphan ${{ inputs.assets-branch }}
           cp $RUNNER_TEMP/{binaries.zip,z64games.json,z64songs.json,z64musicpacker.properties} ./
           git add -A
