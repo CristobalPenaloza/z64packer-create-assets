@@ -43,7 +43,7 @@ runs:
         mkdir -p z64packer
         echo "Getting latest assets if they exist..."
         git fetch
-        git archive z64packer | tar -x -C z64packer/
+        git archive origin/z64packer | tar -x -C z64packer/
         echo "Copying scripts to the working folder..."
         cp -r $GITHUB_ACTION_PATH/src/* z64packer/
         jq --null-input \
