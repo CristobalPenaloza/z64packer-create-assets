@@ -83,12 +83,12 @@ runs:
 
     - name: Copy the output files and push them to the assets branch
       run: |
-          cp z64packer/{binaries.zip,z64games.json,z64songs.json,z64musicpacker.properties} $RUNNER_TEMP/z64packer
+          cp z64packer/{binaries.zip,z64games.json,z64songs.json,z64musicpacker.properties} $RUNNER_TEMP/
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "<>"
           git switch -c ${{ inputs.assets-branch }} --orphan
-          cp z64packer/{binaries.zip,z64games.json,z64songs.json,z64musicpacker.properties} $RUNNER_TEMP/z64packer
-          git add .
+          cp $RUNNER_TEMP/{binaries.zip,z64games.json,z64songs.json,z64musicpacker.properties} ./
+          git add -A
           git commit -m "Z64 Packer Assets for #${{ github.event.number }}"
           git push --force-with-lease
       shell: bash
