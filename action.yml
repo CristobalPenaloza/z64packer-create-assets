@@ -40,7 +40,7 @@ runs:
         
     - name: Copy scripts and show results
       run: |
-        cp -r $GITHUB_ACTION_PATH/src/* z64packer/
+        cp -r $GITHUB_ACTION_PATH/src/* --parents z64packer .
         jq --null-input \
           --arg name "$INPUT_NAME" \
           --arg description "$INPUT_DESCRIPTION" \
