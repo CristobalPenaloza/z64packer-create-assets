@@ -88,7 +88,6 @@ runs:
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "<>"
           git config --global --type bool push.autoSetupRemote true
-          git pull origin ${{ inputs.assets-branch }}
           if git ls-remote --exit-code --heads origin refs/heads/${{ inputs.assets-branch }}; then
             echo "Switching to assets branch..."
             git switch ${{ inputs.assets-branch }}
