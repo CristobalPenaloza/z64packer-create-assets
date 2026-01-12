@@ -88,7 +88,7 @@ runs:
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "<>"
           git config --global --type bool push.autoSetupRemote true
-          if git show-ref --quiet refs/heads/develop; then
+          if git show-ref --quiet --branches ${{ inputs.assets-branch }}; then
             echo "Switching to assets branch..."
             git switch ${{ inputs.assets-branch }}
           else
