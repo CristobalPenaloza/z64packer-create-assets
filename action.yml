@@ -35,14 +35,8 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Checkout main branch
+    - name: Checkout current branch
       uses: actions/checkout@v6
-
-    - name: Checkout the assets branch if it exists, and put it in a folder
-      uses: actions/checkout@v6
-      with:
-        ref: ${{ inputs.assets-branch }}
-        path: z64packer
         
     - name: Copy scripts and show results
       run: |
@@ -56,7 +50,7 @@ runs:
           --arg branch "$INPUT_BRANCH" \
           '$ARGS.named' > z64packer/z64musicpacker.properties
         ls -R
-        head z64packer/z64musicpacker.properties
+        cat z64packer/z64musicpacker.properties
       shell: bash
       env:
         GITHUB_ACTION_PATH: ${{ github.action_path }}
@@ -86,13 +80,14 @@ runs:
       run: python "z64packer/z64_dj_datasheet_tool.py" --ci
       shell: bash
 
-    - name: Commit and push the changes
+    - name: Copy the output files and push them to the assets branch
       run: |
-          cd z64packer
+          cp z64packer/{binaries.zip,z64games.json,z64songs.json,z64musicpacker.properties} $RUNNER_TEMP/z64packer
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "<>"
-          git add binaries.zip z64games.json z64songs.json z64musicpacker.properties
+          git switch -c ${{ assets-branch }} --orphan
+          cp z64packer/{binaries.zip,z64games.json,z64songs.json,z64musicpacker.properties} $RUNNER_TEMP/z64packer
+          git add .
           git commit -m "Z64 Packer Assets for #${{ github.event.number }}"
-          git pull
-          git push
+          git push --force-with-lease
       shell: bash
