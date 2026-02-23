@@ -23,28 +23,25 @@ inputs:
     description: 'URL for an image to use as the repository avatar'
     required: false
     default: 'https://github.githubassets.com/images/gravatars/gravatar-user-420.png?size=32'
+  store-assets-on-secondary-branch:
+    description: 'Set to true if you need the assets stored on a separate branch from the default one'
+    required: false
+    default: 'false'
   metadata-spreadsheet:
     description: 'URL for a Google Docs Spreadsheet with metadata (currently only used for DJs repos, in their format)'
     required: false
     default: ''
-  assets-branch:
-    description: 'The name of the branch that will store the assets'
-    required: false
-    default: 'z64packer'
     
 runs:
   using: "composite"
   steps:
     - name: Checkout current branch
       uses: actions/checkout@v6
-        
-    - name: Copy scripts and show results
+
+    - name: Copy scripts and update properties file
       run: |
+        echo "Copying scripts to working folder..."
         mkdir -p z64packer
-        echo "Getting latest assets if they exist..."
-        git fetch
-        git archive origin/z64packer | tar -x -C z64packer/
-        echo "Copying scripts to the working folder..."
         cp -r $GITHUB_ACTION_PATH/src/* z64packer/
         jq --null-input \
           --arg name "$INPUT_NAME" \
@@ -52,9 +49,11 @@ runs:
           --arg binaries "$INPUT_BINARIES" \
           --arg previews "$INPUT_PREVIEWS" \
           --arg avatarUrl "$INPUT_AVATAR_URL" \
+          --arg useSecondaryBranch "$INPUT_USE_SECONDARY_BRANCH" \
           --arg branch "$INPUT_BRANCH" \
           '$ARGS.named' > z64packer/z64musicpacker.properties
         ls -R
+        echo "Updating z64musicpacker.properties..."
         cat z64packer/z64musicpacker.properties
       shell: bash
       env:
@@ -64,7 +63,16 @@ runs:
         INPUT_BINARIES: ${{ inputs.binaries-path }}
         INPUT_PREVIEWS: ${{ inputs.previews-path }}
         INPUT_AVATAR_URL: ${{ inputs.avatar-url }}
+        INPUT_USE_SECONDARY_BRANCH: ${{ inputs.store-assets-on-secondary-branch }}
         INPUT_BRANCH: ${{ github.head_ref || github.ref_name }}
+        
+    - name: Get assets from z64packer branch
+      if: ${{ inputs.store-assets-on-secondary-branch == 'true' }}
+      run: |
+        echo "Getting latest assets from z64packer branch if they exist..."
+        git fetch
+        git archive origin/z64packer | tar -x -C z64packer/
+      shell: bash
       
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
@@ -85,7 +93,21 @@ runs:
       run: python "z64packer/z64_dj_datasheet_tool.py" --ci
       shell: bash
 
-    - name: Copy the output files and push them to the assets branch
+    - name: Delete scripts and commit changes
+      if: ${{ inputs.store-assets-on-secondary-branch != 'true' }}
+      run: |
+        echo "Deleting scripts and commiting changes..."
+        rm z64packer/{z64_python_requirements.txt,z64packer/z64_database_fixer.py,z64packer/z64_dj_datasheet_tool.py}
+        git config --global user.name "GitHub Actions Bot"
+        git config --global user.email "<>"
+        git add -A
+        git commit -m "Z64 Packer Assets for ${{ github.sha }}"
+        git pull
+        git push
+      shell: bash
+
+    - name: Copy the output files and push them to assets branch
+      if: ${{ inputs.store-assets-on-secondary-branch == 'true' }}
       run: |
           echo "Copying output files to a temporary location..."
           cp z64packer/{binaries.zip,z64games.json,z64songs.json,z64musicpacker.properties} $RUNNER_TEMP/
@@ -93,12 +115,12 @@ runs:
           git config --global user.email "<>"
           git config --global --type bool push.autoSetupRemote true
           git fetch
-          if git ls-remote --exit-code --heads origin refs/heads/${{ inputs.assets-branch }}; then
+          if git ls-remote --exit-code --heads origin refs/heads/z64packer; then
             echo "Switching to assets branch..."
-            git switch -c ${{ inputs.assets-branch }} --track origin/${{ inputs.assets-branch }}
+            git switch -c z64packer --track origin/z64packer
           else
             echo "Creating assets branch since it doesn't exist..."
-            git switch --orphan ${{ inputs.assets-branch }}
+            git switch --orphan z64packer
           fi
           cp -rf $RUNNER_TEMP/{binaries.zip,z64games.json,z64songs.json,z64musicpacker.properties} ./
           git add binaries.zip z64games.json z64songs.json z64musicpacker.properties
