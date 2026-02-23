@@ -97,7 +97,7 @@ runs:
       if: ${{ inputs.store-assets-on-secondary-branch != 'true' }}
       run: |
         echo "Deleting scripts and commiting changes..."
-        rm z64packer/{z64_python_requirements.txt,z64packer/z64_database_fixer.py,z64packer/z64_dj_datasheet_tool.py}
+        rm z64packer/{z64_python_requirements.txt,z64_database_fixer.py,z64_dj_datasheet_tool.py} || true
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email "<>"
         git add -A
