@@ -1,4 +1,4 @@
-# Database fixer for Z64 custom music repositories | Version 1.2
+# Database fixer for Z64 custom music repositories | Version 1.3
 import json
 import os
 import zipfile
@@ -128,14 +128,15 @@ def detectSongs():
                                     print('Adding missing game to DB: ' + game + ' | ' + series)
                                     games.append({
                                         "game": game,
-                                        "series": series,
-                                        "platforms": [],
-                                        "abbrName": game
+                                        "series": series
                                     })
-                                # If it's in the list, update it's series to match the folder structure
-                                else:
-                                    print('Updating game to series: ' + series)
-                                    games[gameIndex]["series"] = series
+
+                                # We no longer support modifying the series trough here, that needs to be done manually
+                                # Only done for new games trhu folder structure
+                                # But the idea is to NOT use folder structure for this
+                                #else:
+                                #    print('Updating game to series: ' + series)
+                                #    games[gameIndex]["series"] = series
 
 
                                 # SONG MANAGEMENT
