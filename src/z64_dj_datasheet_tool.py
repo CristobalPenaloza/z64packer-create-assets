@@ -20,7 +20,7 @@ def processExcel():
     
     # Get the repo name
     repoName = ""
-    with open(propertiesPath, encoding='ISO-8859-1') as propertiesFile:
+    with open(propertiesPath, encoding='utf-8') as propertiesFile:
        properties = json.load(propertiesFile)
        repoName = properties["name"]
 
@@ -43,7 +43,7 @@ def processExcel():
 
 
     # Open up the database, since we are going to modify it
-    with open(songsPath, 'r+', encoding='ISO-8859-1') as databaseFile:
+    with open(songsPath, 'r+', encoding='utf-8') as databaseFile:
       print("OPENING SONG DATABASE FILE")
       database = json.load(databaseFile)
       foundSongs = 0
