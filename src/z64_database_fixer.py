@@ -18,7 +18,7 @@ def detectSongs():
         if not os.path.exists(propertiesPath):
             raise Exception('This is not an Z64 repository | Missing z64musicpacker.properties file')
     
-    with open(propertiesPath, encoding='ISO-8859-1') as propertiesFile:
+    with open(propertiesPath, encoding='utf-8') as propertiesFile:
         properties = json.load(propertiesFile)
         binaries = properties['binaries']
 
@@ -32,12 +32,12 @@ def detectSongs():
                 with open(gamesPath, 'w+') as f: f.write('[]')
 
             # First, open the games database
-            with open(gamesPath, 'r+', encoding='ISO-8859-1') as gamesFile:
+            with open(gamesPath, 'r+', encoding='utf-8') as gamesFile:
                 print("OPENING GAME DATABASE FILE")
                 games = json.load(gamesFile)
 
                 # Open the database, so we can modify it
-                with open(songsPath, 'r+', encoding='ISO-8859-1') as databaseFile:
+                with open(songsPath, 'r+', encoding='utf-8') as databaseFile:
                     print("OPENING SONG DATABASE FILE")
                     database = json.load(databaseFile)
                     
