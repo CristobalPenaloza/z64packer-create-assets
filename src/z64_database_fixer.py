@@ -121,15 +121,6 @@ def detectSongs():
                                 directories = directory.replace("\\","/").split('/')
                                 game = safe_list_get(directories, -1, "Unknown")
                                 series = safe_list_get(directories, -2, "") # We only go 1 up the directories... We don't support series in series
-                                gameIndex = safe_list_index([x["game"] for x in games], game)
-                                
-                                # If it's not in the list, just add it
-                                if gameIndex == None:
-                                    print('Adding missing game to DB: ' + game + ' | ' + series)
-                                    games.append({
-                                        "game": game,
-                                        "series": series
-                                    })
 
                                 # We no longer support modifying the series trough here, that needs to be done manually
                                 # Only done for new games trhu folder structure
@@ -168,6 +159,15 @@ def detectSongs():
                                         'uuid': str(uuid.uuid4()),
                                         'file': fullPath
                                     })
+
+                                    # If it's not in the list, just add it
+                                    gameIndex = safe_list_index([x["game"] for x in games], game)
+                                    if gameIndex == None:
+                                        print('Adding missing game to DB: ' + game + ' | ' + series)
+                                        games.append({
+                                            "game": game,
+                                            "series": series
+                                        })
 
                                 # Add this file to the main zip
                                 osPath = os.path.join(dirpath, filename)
