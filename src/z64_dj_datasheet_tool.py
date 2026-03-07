@@ -105,7 +105,7 @@ def processExcel():
 
       # Replace song database with this one
       databaseFile.seek(0)
-      json.dump(database, databaseFile, indent=2)
+      json.dump(database, databaseFile, indent=2, ensure_ascii=False)
       databaseFile.truncate()
     
     # If everything when ok, then return true
