@@ -120,8 +120,8 @@ def detectSongs():
                                 # Update the games database
                                 directories = directory.replace("\\","/").split('/')
                                 game = safe_list_get(directories, -1, "Unknown")
-                                series = safe_list_get(directories, -2, "") # We only go 1 up the directories... We don't support series in series
 
+                                #series = safe_list_get(directories, -2, "") # We only go 1 up the directories... We don't support series in series
                                 # We no longer support modifying the series trough here, that needs to be done manually
                                 # Only done for new games trhu folder structure
                                 # But the idea is to NOT use folder structure for this
@@ -133,7 +133,7 @@ def detectSongs():
                                 # SONG MANAGEMENT
                                 # Check if the file is in the database
                                 fullPath = os.path.join(directory, filename).replace("\\","/")
-                                detectedInDatabase = any(x["file"] == fullPath for x in database)
+                                detectedInDatabase = next((x for x in database if x["file"] == fullPath), None)
 
                                 # If the file is in the DB, instead check it's integrity
                                 if detectedInDatabase:
@@ -144,6 +144,9 @@ def detectSongs():
                                     database[i]["usesCustomBank"] = usesCustomBank
                                     database[i]["usesCustomSamples"] = usesCustomSamples
                                     database[i]["usesFormmask"] = usesFormmask
+
+                                    # Update the game, so we are not creating duplicates
+                                    game = database[i]["game"]
 
                                 # If is not there, add it!
                                 else:
@@ -160,14 +163,13 @@ def detectSongs():
                                         'file': fullPath
                                     })
 
-                                    # If it's not in the list, just add it
-                                    gameIndex = safe_list_index([x["game"] for x in games], game)
-                                    if gameIndex == None:
-                                        print('Adding missing game to DB: ' + game + ' | ' + series)
-                                        games.append({
-                                            "game": game,
-                                            "series": series
-                                        })
+                                # If it's not in the list, just add it
+                                gameIndex = safe_list_index([x["game"] for x in games], game)
+                                if gameIndex == None:
+                                    print('Adding missing game to DB: ' + game)
+                                    games.append({
+                                        "game": game
+                                    })
 
                                 # Add this file to the main zip
                                 osPath = os.path.join(dirpath, filename)
@@ -178,12 +180,12 @@ def detectSongs():
 
                     # Replace song database with this one
                     databaseFile.seek(0)
-                    json.dump(database, databaseFile, indent=2)
+                    json.dump(database, databaseFile, indent=2, ensure_ascii=False)
                     databaseFile.truncate()
 
                  # Replace game database with this one
                 gamesFile.seek(0)
-                json.dump(games, gamesFile, indent=2)
+                json.dump(games, gamesFile, indent=2, ensure_ascii=False)
                 gamesFile.truncate()
 
     return True
