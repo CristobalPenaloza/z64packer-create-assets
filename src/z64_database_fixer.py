@@ -1,6 +1,7 @@
-# Database fixer for Z64 custom music repositories | Version 1.3
+# Database fixer for Z64 custom music repositories | Version 1.4
 import json
 import os
+import re
 import zipfile
 import uuid
 import traceback
@@ -133,7 +134,9 @@ def detectSongs():
                                 # SONG MANAGEMENT
                                 # Check if the file is in the database
                                 fullPath = os.path.join(directory, filename).replace("\\","/")
-                                detectedInDatabase = next((x for x in database if x["file"] == fullPath), None)
+
+                                # THIS COMPARISON NEEDS TO NOT CHECK FOR DOUBLE COLONS!
+                                detectedInDatabase = any(x for x in database if path_comparison(x["file"], fullPath))
 
                                 # If the file is in the DB, instead check it's integrity
                                 if detectedInDatabase:
@@ -164,8 +167,8 @@ def detectSongs():
                                     })
 
                                 # If it's not in the list, just add it
-                                gameIndex = safe_list_index([x["game"] for x in games], game)
-                                if gameIndex == None:
+                                gameDetectedInDatabase = any(x for x in database if path_comparison(x["game"], game))
+                                if not gameDetectedInDatabase:
                                     print('Adding missing game to DB: ' + game)
                                     games.append({
                                         "game": game
@@ -201,6 +204,10 @@ def safe_list_index(iterable, value, default = None):
         if item == value:
             return i
     return default
+
+def path_comparison(a, b):
+    unsafeCharacters = r'[\\\/:*?"<>|]'
+    return re.sub(unsafeCharacters, '', a).lower() == re.sub(unsafeCharacters, '', b).lower()
 
 
 def extractMetadata(path) -> tuple[str, list, bool, bool, bool]:
