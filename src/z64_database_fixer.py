@@ -167,7 +167,7 @@ def detectSongs():
                                     })
 
                                 # If it's not in the list, just add it
-                                gameDetectedInDatabase = any(x for x in database if path_comparison(x["game"], game))
+                                gameDetectedInDatabase = any(x for x in games if path_comparison(x["game"], game))
                                 if not gameDetectedInDatabase:
                                     print('Adding missing game to DB: ' + game)
                                     games.append({
