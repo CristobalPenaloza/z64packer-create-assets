@@ -46,6 +46,8 @@ def processExcel():
     with open(songsPath, 'r+', encoding='utf-8') as databaseFile:
       print("OPENING SONG DATABASE FILE")
       database = json.load(databaseFile)
+      database = list(filter(lambda s: isinstance(s, dict), database))
+      
       foundSongs = 0
       notFoundSongs = 0
       
@@ -103,6 +105,10 @@ def processExcel():
       print("FOUND SONGS: " + str(foundSongs))
       print("NOT FOUND SONGS: " + str(notFoundSongs))
 
+      # Add the sentinel lines to prevent merge conflicts
+      sentinel_line = "__SENTINEL__: ONLY ADD ENTRIES ABOVE THIS LINE TO PREVENT MERGE CONFLICTS. Oh also, don't delete it please thank you <3"
+      database.append(sentinel_line)
+      
       # Replace song database with this one
       databaseFile.seek(0)
       json.dump(database, databaseFile, indent=2, ensure_ascii=False)
