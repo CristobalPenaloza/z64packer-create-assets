@@ -36,11 +36,13 @@ def detectSongs():
             with open(gamesPath, 'r+', encoding='utf-8') as gamesFile:
                 print("OPENING GAME DATABASE FILE")
                 games = json.load(gamesFile)
+                games = list(filter(lambda g: isinstance(g, dict), games))
 
                 # Open the database, so we can modify it
                 with open(songsPath, 'r+', encoding='utf-8') as databaseFile:
                     print("OPENING SONG DATABASE FILE")
                     database = json.load(databaseFile)
+                    database = list(filter(lambda s: isinstance(s, dict), database))
                     
                     # First, check if the names and files are correct
                     # The database name has priority in this
@@ -180,7 +182,12 @@ def detectSongs():
 
                             except Exception:
                                 print("An error ocurred while processing the file " + filename + ": " + traceback.format_exc())
-
+                    
+                    # Add the sentinel lines at the end to prevent merge conflicts
+                    sentinel_line = "__SENTINEL__: ONLY ADD ENTRIES ABOVE THIS LINE TO PREVENT MERGE CONFLICTS. Oh also, don't delete it please thank you <3"
+                    database.append(sentinel_line)
+                    games.append(sentinel_line)
+                    
                     # Replace song database with this one
                     databaseFile.seek(0)
                     json.dump(database, databaseFile, indent=2, ensure_ascii=False)
