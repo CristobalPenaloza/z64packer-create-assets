@@ -6,9 +6,17 @@ import zipfile
 import uuid
 import traceback
 import yaml
+import argparse
 from pathlib import Path
+import faulthandler
 
-def detectSongs():
+# Enable error line report
+faulthandler.enable()
+
+def detectSongs(repo_path):
+    # Move to the specified path... by default we use the current directory
+    os.chdir(repo_path)
+
     propertiesPath = 'z64musicpacker.properties'
     binariesPath = 'z64packer/binaries.zip'
     songsPath = 'z64packer/z64songs.json'
@@ -22,6 +30,12 @@ def detectSongs():
     with open(propertiesPath, encoding='utf-8') as propertiesFile:
         properties = json.load(propertiesFile)
         binaries = properties['binaries']
+
+        # Statistics
+        valid_files = 0
+        missing_files = 0
+        bank_stuffing_files = 0
+        empty_folders = 0
 
         # Pack all the files in a single zip, to provide a faster download in the web tool
         with zipfile.ZipFile(binariesPath, 'w', zipfile.ZIP_DEFLATED) as binariesZip:
@@ -76,7 +90,9 @@ def detectSongs():
 
                             # TODO: HERE WE NEED TO ADD THE SERIES TO THE INTENDED PATH
 
-                            print("Checking name")
+                            # print("Checking name")
+                            valid_files += 1
+
                             #intendedPath = entry['game'] + '/' + entry['song'] + os.path.splitext(actualPath)[1]
                             #if intendedPath != actualPath:
                             #    print("DIFFERENT PATH DETECTED")
@@ -91,9 +107,8 @@ def detectSongs():
                         # If we don't find it, then remove it from the database
                         # Still, evaluate if this is ok to do...
                         else:
-                            print('MISSING ENTRY DETECTED')
-                            print('Path: ' + actualPath)
-                            print('Removing...')
+                            print('MISSING ENTRY DETECTED: ' + actualPath + " Removing...")
+                            missing_files += 1
                             database.pop(i)
 
 
@@ -104,9 +119,8 @@ def detectSongs():
 
                         # Remove empty folders
                         if len(os.listdir(dirpath)) == 0:
-                            print("EMPTY FOLDER DETECTED")
-                            print("Folder: " + dirpath)
-                            print("Clean up... Clean up...")
+                            print("EMPTY FOLDER DETECTED: " + dirpath + " Clean up... Clean up...")
+                            empty_folders += 1
                             os.rmdir(dirpath)
                             continue
 
@@ -116,8 +130,14 @@ def detectSongs():
                                 # Only check ootrs and mmrs files
                                 if not filename.endswith('.ootrs') and not filename.endswith('.mmrs'): continue
 
+                                # Fix any bank stuffing to port it to the new format
+                                path = os.path.join(dirpath, filename)
+                                if(filename.endswith('.mmrs')):
+                                    bank_stuffing_files += fix_bank_stuffing(path)
+                                continue
+
                                 # Extract data from the file
-                                type, categories, usesCustomBank, usesCustomSamples, usesFormmask = extractMetadata(os.path.join(dirpath, filename))
+                                type, categories, usesCustomBank, usesCustomSamples, usesFormmask = extract_metadata(path)
 
                                 # GAME MANAGEMENT
                                 # Update the games database
@@ -198,6 +218,13 @@ def detectSongs():
                 json.dump(games, gamesFile, indent=2, ensure_ascii=False)
                 gamesFile.truncate()
 
+        # Print our statistics
+        print("Statistics:")
+        print(f"Valid files: {valid_files}")
+        print(f"Missing files: {missing_files}")
+        print(f"Bank stuffing fixed: {bank_stuffing_files}")
+        print(f"Empty folders removed: {empty_folders}")
+
     return True
 
 def safe_list_get(list, idx, default):
@@ -216,19 +243,65 @@ def path_comparison(a, b):
     unsafeCharacters = r'[\\\/:*?"<>|]'
     return re.sub(unsafeCharacters, '', a).lower() == re.sub(unsafeCharacters, '', b).lower()
 
+# ========= PROCESSING ==========
 
-def extractMetadata(path) -> tuple[str, list, bool, bool, bool]:
+def extract_metadata(path) -> tuple[str, list, bool, bool, bool]:
     archive = zipfile.ZipFile(path, 'r')
     namelist = archive.namelist()
     
     isOOTRS = path.endswith('.ootrs')
     isUniversalYamlFormat = any(n.endswith('.metadata') for n in namelist)
     
-    if isUniversalYamlFormat: return extractMetadataFromUniversalYamlFormat(archive, namelist)
-    elif isOOTRS: return extractMetadataFromOOTRS(archive, namelist)
-    else: return extractMetadataFromMMRS(archive, namelist)
+    if isUniversalYamlFormat: return extract_metadata_from_universal_yaml_format(archive, namelist)
+    elif isOOTRS: return extract_metadata_from_ootrs(archive, namelist)
+    else: return extract_metadata_from_mmrs(archive, namelist)
 
-def extractMetadataFromUniversalYamlFormat(archive, namelist) -> tuple[str, list, bool, bool, bool]:
+def fix_bank_stuffing(path) -> bool:
+    was_fixed = False
+    with zipfile.ZipFile(path, 'r') as zin:
+        namelist = zin.namelist()
+
+        # Count the amount of zseq files we have... if they are more than 1, we have bank stuffing
+        seq_count = sum(n.endswith('.zseq') for n in namelist)
+        if seq_count > 1:
+
+            # Also make sure this is ACTUALLY a custom bank
+            is_custom_bank = any(n.endswith('.zbank') for n in namelist)
+            if is_custom_bank:
+                # Create a new file to store the fixed output 
+                print("BANK STUFFING DETECTED: " + path + " Fixing...")
+                with zipfile.ZipFile(f"{path}.bak", 'w') as zout:
+                    file_to_keep = ''
+
+                    for item in zin.infolist():
+                        buffer = zin.read(item.filename)
+                        root, extension = os.path.splitext(item.filename)
+                        if extension == '.zseq' or extension == '.zbank' or extension == '.bankmeta':
+
+                            # If this is the first file we find, we are gonna keep this set
+                            if not file_to_keep: file_to_keep = root
+
+                            # Make sure to replace to the modern custom bank
+                            if root == file_to_keep:
+                                item.filename = f"28{extension}"
+                            
+                            # If we are not from the set, we skip
+                            else: continue
+                                
+                        # If we are not duplicate, we just rewrite to the file
+                        zout.writestr(item, buffer)
+                
+            else:
+                print("BANK STUFFING WITH NO BANKS...? " + path + " Cannot fix this right now...")
+
+            # Notify we fixed this file
+            was_fixed = is_custom_bank # True
+            
+    # Replace the old file with the new one
+    if was_fixed: os.replace(f"{path}.bak", path)
+    return was_fixed
+
+def extract_metadata_from_universal_yaml_format(archive, namelist) -> tuple[str, list, bool, bool, bool]:
     for name in namelist:
         if name.endswith('.metadata'):
             with archive.open(name) as metadata_file:
@@ -243,9 +316,10 @@ def extractMetadataFromUniversalYamlFormat(archive, namelist) -> tuple[str, list
                 usesFormmask = len(metadata.get('formmask', [])) > 0
 
                 return seq_type, groups, usesCustomBank, usesCustomSamples, usesFormmask
+    raise EOFError("Couldn't find yaml metadata in file!")
 
 
-def extractMetadataFromOOTRS(archive, namelist) -> tuple[str, list, bool, bool, bool]:
+def extract_metadata_from_ootrs(archive, namelist) -> tuple[str, list, bool, bool, bool]:
     for name in namelist:
         if name.endswith('.meta'):
             with archive.open(name) as meta_file:
@@ -261,9 +335,10 @@ def extractMetadataFromOOTRS(archive, namelist) -> tuple[str, list, bool, bool, 
                 usesCustomSamples = any(n.endswith('.zsound') for n in namelist)
 
                 return seq_type, groups, usesCustomBank, usesCustomSamples, False
+    raise EOFError("Couldn't find ootrs metadata in file!")
 
 
-def extractMetadataFromMMRS(archive, namelist) -> tuple[str, list, bool, bool, bool]:
+def extract_metadata_from_mmrs(archive, namelist) -> tuple[str, list, bool, bool, bool]:
     for name in namelist:
         if name == 'categories.txt':
             with archive.open(name) as categories_file:
@@ -283,16 +358,21 @@ def extractMetadataFromMMRS(archive, namelist) -> tuple[str, list, bool, bool, b
                 usesFormmask = any(n.endswith('.formmask') for n in namelist)
 
                 return seq_type, categories, usesCustomBank, usesCustomSamples, usesFormmask
+    raise EOFError("Couldn't find mmrs metadata in file!")
 
     
+if __name__ == '__main__':
+    print("RUNNING Z64 DATABASE FIXER!")
+    parser = argparse.ArgumentParser(
+        description="Rebuilds the Z64 packer database, manages missing files, and fixes some known issues."
+    )
+    parser.add_argument("--repo_path", default=".", help="The path to the z64packer repository. By default is the current directory.")
+    args = parser.parse_args()
 
-def main():
-    result = detectSongs()
+    repo_path = args.repo_path
+
+    result = detectSongs(repo_path)
 
     if result: print("Process completed succesfully!")
     else: print("An error occured")
-
-
-if __name__ == '__main__':
-    main()
     
