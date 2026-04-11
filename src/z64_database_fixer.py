@@ -256,6 +256,7 @@ def extract_metadata(path) -> tuple[str, list, bool, bool, bool]:
     else: return extract_metadata_from_mmrs(archive, namelist)
 
 def fix_bank_stuffing(path) -> bool:
+    file_path, extension = os.path.splitext(path)
     was_fixed = False
     with zipfile.ZipFile(path, 'r') as zin:
         namelist = zin.namelist()
@@ -263,46 +264,52 @@ def fix_bank_stuffing(path) -> bool:
         # Count the amount of zseq files we have... if they are more than 1, we have bank stuffing
         seqs = [n for n in namelist if n.endswith('.zseq')]
         if len(seqs) > 1:
+            print("BANK STUFFING: " + path + " Fixing...")
 
             # TODO: NO ALL CUSTOM BANK STUFFING IS MADE EQUAL
             # Earthbound Begginings/Hippy.mmrs has a custom bank seq + a chiptune set
             # Both of them are on bank 24, but the chiptune one is on bank 0x24
             # HOW can you know if bank stuffing will be an issue?
 
-            # We need:
+            # We need to know:
             # 1. WHY bank stuffing was necessary
             # 2. HOW to differentiate stuffing for CUSTOM BANKS, or for RANDOM TRACKS
 
-            # Also make sure this is ACTUALLY a custom bank
-            is_custom_bank = any(n.endswith('.zbank') for n in namelist)
-            if is_custom_bank:
-                # Create a new file to store the fixed output 
-                print("BANK STUFFING: " + path + " Fixing...")
-                extract_file_by_bank(zin, f"{path}.bak", set_bank="28")
+            # Answers:
+            # 1. It was necessary so the rando can properly add more instruments some unused banks (stuffing) so
+            #    that songs could use them. Multiple banks were provided so that the rando has more chances to
+            #    find space.
+            # 2. If a zseq has a related custom bank, it means that set should be 28 in modern standards. Every other zseq
+            #    with a related custom bank should be ommited. If a zseq doesn't have a related bank, it should be splitted.
 
-            # If has no banks, is very probable that the file has multiple variants inside
-            # So, we have to separate them, and copy their metadata (with the exception of the preview)
-            else:
-                print("SEQ STUFFING: " + path + " Splitting file...")
+            # TODO: Include behaviours to replace original track (prioritize custom bank) 
+            # TODO: Copy entry to database for new splitted files!
+            # TODO: 0x.. or 1a tend to be the chiptune seqs...
+
+            custom_bank_already_extracted = False
+            for i, seq in enumerate(seqs):
+                bank, _ = os.path.splitext(seq)
+                print("Checking bank " + bank + "...")
+
+                # Check if this seq has a custom bank attached
+                is_custom_bank = any(n == f"{bank}.zbank" for n in namelist)
+                if is_custom_bank:
+                    # We extract only one seq with custom bank, because all of the other are copies
+                    if custom_bank_already_extracted: continue
+
+                    # Create a new file to store the fixed output
+                    custom_bank_already_extracted = True
+                    extract_file_by_bank(zin, f"{file_path} (Custom Bank){extension}", bank_to_keep=bank, set_bank="28")
                 
-                for i, seq in enumerate(seqs):
-                    bank, _ = os.path.splitext(seq)
-                    print("SPLITTING FOR BANK: " + bank)
-
-                    # The first seq is the main file... we'll use it to replace the original
-                    if(i == 0): 
-                        extract_file_by_bank(zin, f"{path}.bak", bank_to_keep=bank)
-
-                    # The rest we just add them as new files
-                    else:
-                        file_path, extension = os.path.splitext(path)
-                        extract_file_by_bank(zin, f"{file_path} (Bank {bank}){extension}", bank_to_keep=bank)
+                # If has no custom banks, this is a variant and we need to separate it
+                else:
+                    extract_file_by_bank(zin, f"{file_path} (Bank {bank}){extension}", bank_to_keep=bank)
 
             # Notify we need to replace the old file!
             was_fixed = True
             
     # Replace the old file with the new one
-    if was_fixed: os.replace(f"{path}.bak", path)
+    # if was_fixed: os.replace(f"{path}.bak", path)
     return was_fixed
 
 def extract_file_by_bank(zin, new_file_path, set_bank = None, bank_to_keep = None):
