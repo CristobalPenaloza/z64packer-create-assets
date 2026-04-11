@@ -134,7 +134,6 @@ def detectSongs(repo_path):
                                 path = os.path.join(dirpath, filename)
                                 if(filename.endswith('.mmrs')):
                                     bank_stuffing_files += fix_bank_stuffing(path)
-                                continue
 
                                 # Extract data from the file
                                 type, categories, usesCustomBank, usesCustomSamples, usesFormmask = extract_metadata(path)
@@ -162,7 +161,7 @@ def detectSongs(repo_path):
 
                                 # If the file is in the DB, instead check it's integrity
                                 if detectedInDatabase:
-                                    print('Updating file on DB: ' + fullPath)
+                                    # print('Updating file on DB: ' + fullPath)
                                     i = [x["file"] for x in database].index(fullPath)
                                     database[i]["type"] = type
                                     database[i]["categories"] = categories
@@ -262,44 +261,71 @@ def fix_bank_stuffing(path) -> bool:
         namelist = zin.namelist()
 
         # Count the amount of zseq files we have... if they are more than 1, we have bank stuffing
-        seq_count = sum(n.endswith('.zseq') for n in namelist)
-        if seq_count > 1:
+        seqs = [n for n in namelist if n.endswith('.zseq')]
+        if len(seqs) > 1:
+
+            # TODO: NO ALL CUSTOM BANK STUFFING IS MADE EQUAL
+            # Earthbound Begginings/Hippy.mmrs has a custom bank seq + a chiptune set
+            # Both of them are on bank 24, but the chiptune one is on bank 0x24
+            # HOW can you know if bank stuffing will be an issue?
+
+            # We need:
+            # 1. WHY bank stuffing was necessary
+            # 2. HOW to differentiate stuffing for CUSTOM BANKS, or for RANDOM TRACKS
 
             # Also make sure this is ACTUALLY a custom bank
             is_custom_bank = any(n.endswith('.zbank') for n in namelist)
             if is_custom_bank:
                 # Create a new file to store the fixed output 
-                print("BANK STUFFING DETECTED: " + path + " Fixing...")
-                with zipfile.ZipFile(f"{path}.bak", 'w') as zout:
-                    file_to_keep = ''
+                print("BANK STUFFING: " + path + " Fixing...")
+                extract_file_by_bank(zin, f"{path}.bak", set_bank="28")
 
-                    for item in zin.infolist():
-                        buffer = zin.read(item.filename)
-                        root, extension = os.path.splitext(item.filename)
-                        if extension == '.zseq' or extension == '.zbank' or extension == '.bankmeta':
-
-                            # If this is the first file we find, we are gonna keep this set
-                            if not file_to_keep: file_to_keep = root
-
-                            # Make sure to replace to the modern custom bank
-                            if root == file_to_keep:
-                                item.filename = f"28{extension}"
-                            
-                            # If we are not from the set, we skip
-                            else: continue
-                                
-                        # If we are not duplicate, we just rewrite to the file
-                        zout.writestr(item, buffer)
-                
+            # If has no banks, is very probable that the file has multiple variants inside
+            # So, we have to separate them, and copy their metadata (with the exception of the preview)
             else:
-                print("BANK STUFFING WITH NO BANKS...? " + path + " Cannot fix this right now...")
+                print("SEQ STUFFING: " + path + " Splitting file...")
+                
+                for i, seq in enumerate(seqs):
+                    bank, _ = os.path.splitext(seq)
+                    print("SPLITTING FOR BANK: " + bank)
 
-            # Notify we fixed this file
-            was_fixed = is_custom_bank # True
+                    # The first seq is the main file... we'll use it to replace the original
+                    if(i == 0): 
+                        extract_file_by_bank(zin, f"{path}.bak", bank_to_keep=bank)
+
+                    # The rest we just add them as new files
+                    else:
+                        file_path, extension = os.path.splitext(path)
+                        extract_file_by_bank(zin, f"{file_path} (Bank {bank}){extension}", bank_to_keep=bank)
+
+            # Notify we need to replace the old file!
+            was_fixed = True
             
     # Replace the old file with the new one
     if was_fixed: os.replace(f"{path}.bak", path)
     return was_fixed
+
+def extract_file_by_bank(zin, new_file_path, set_bank = None, bank_to_keep = None):
+    with zipfile.ZipFile(new_file_path, 'w') as zout:
+        file_to_keep = bank_to_keep
+
+        for item in zin.infolist():
+            buffer = zin.read(item)
+            root, extension = os.path.splitext(item.filename)
+            if extension == '.zseq' or extension == '.zbank' or extension == '.bankmeta':
+
+                # If this is the first file we find, we are gonna keep this bank set
+                if not file_to_keep: file_to_keep = root
+
+                # Skip this file if is not from the set
+                if root != file_to_keep: continue
+
+                # Replace the bank if needed
+                if set_bank: item.filename = f"{set_bank}{extension}"
+                    
+            # If we are not duplicate, we just rewrite to the file
+            zout.writestr(item.filename, buffer)
+
 
 def extract_metadata_from_universal_yaml_format(archive, namelist) -> tuple[str, list, bool, bool, bool]:
     for name in namelist:
