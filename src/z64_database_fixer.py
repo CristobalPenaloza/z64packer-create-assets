@@ -124,16 +124,17 @@ def detectSongs(repo_path):
                             os.rmdir(dirpath)
                             continue
 
-                        # Check every single file inside this  folder
+                        # Check every single file inside this folder
                         for filename in filenames:
                             try:
                                 # Only check ootrs and mmrs files
                                 if not filename.endswith('.ootrs') and not filename.endswith('.mmrs'): continue
 
-                                # Fix any bank stuffing to port it to the new format
+                                # Fix any bank stuffing to port it to using custom bank 28
                                 path = os.path.join(dirpath, filename)
+                                database_path = os.path.join(directory, filename).replace("\\","/")
                                 if(filename.endswith('.mmrs')):
-                                    bank_stuffing_files += fix_bank_stuffing(path)
+                                    bank_stuffing_files += fix_bank_stuffing(database, database_path, path)
 
                                 # Extract data from the file
                                 type, categories, usesCustomBank, usesCustomSamples, usesFormmask = extract_metadata(path)
@@ -154,15 +155,13 @@ def detectSongs(repo_path):
 
                                 # SONG MANAGEMENT
                                 # Check if the file is in the database
-                                fullPath = os.path.join(directory, filename).replace("\\","/")
-
                                 # THIS COMPARISON NEEDS TO NOT CHECK FOR DOUBLE COLONS!
-                                detectedInDatabase = any(x for x in database if path_comparison(x["file"], fullPath))
+                                detectedInDatabase = any(x for x in database if path_comparison(x["file"], database_path))
 
                                 # If the file is in the DB, instead check it's integrity
                                 if detectedInDatabase:
-                                    # print('Updating file on DB: ' + fullPath)
-                                    i = [x["file"] for x in database].index(fullPath)
+                                    # print('Updating file on DB: ' + database_path)
+                                    i = [x["file"] for x in database].index(database_path)
                                     database[i]["type"] = type
                                     database[i]["categories"] = categories
                                     database[i]["usesCustomBank"] = usesCustomBank
@@ -174,7 +173,7 @@ def detectSongs(repo_path):
 
                                 # If is not there, add it!
                                 else:
-                                    print('Adding missing file to DB: ' + fullPath)
+                                    print('Adding missing file to DB: ' + database_path)
                                     database.append({
                                         'game': game,
                                         'song': filename.replace('.ootrs', '').replace('.mmrs', ''),
@@ -184,7 +183,7 @@ def detectSongs(repo_path):
                                         'usesCustomSamples': usesCustomSamples,
                                         'usesFormmask': usesFormmask,
                                         'uuid': str(uuid.uuid4()),
-                                        'file': fullPath
+                                        'file': database_path
                                     })
 
                                 # If it's not in the list, just add it
@@ -255,9 +254,10 @@ def extract_metadata(path) -> tuple[str, list, bool, bool, bool]:
     elif isOOTRS: return extract_metadata_from_ootrs(archive, namelist)
     else: return extract_metadata_from_mmrs(archive, namelist)
 
-def fix_bank_stuffing(path) -> bool:
+def fix_bank_stuffing(database, database_path, path) -> bool:
     file_path, extension = os.path.splitext(path)
-    was_fixed = False
+    path_of_original = None
+
     with zipfile.ZipFile(path, 'r') as zin:
         namelist = zin.namelist()
 
@@ -284,7 +284,9 @@ def fix_bank_stuffing(path) -> bool:
 
             # TODO: Include behaviours to replace original track (prioritize custom bank) 
             # TODO: Copy entry to database for new splitted files!
-            # TODO: 0x.. or 1a tend to be the chiptune seqs...
+            # TODO: 0x. or 1a or b tend to be the chiptune seqs...
+            # TODO: If it has custom bank + another file, that other file is always an 8bit Version
+            # TODO: There is ONE exception (Sheriff Domestic - Got Disk) so that we manage manually
 
             custom_bank_already_extracted = False
             for i, seq in enumerate(seqs):
@@ -297,20 +299,49 @@ def fix_bank_stuffing(path) -> bool:
                     # We extract only one seq with custom bank, because all of the other are copies
                     if custom_bank_already_extracted: continue
 
-                    # Create a new file to store the fixed output
+                    # Create a new file to store this seq, force 
                     custom_bank_already_extracted = True
-                    extract_file_by_bank(zin, f"{file_path} (Custom Bank){extension}", bank_to_keep=bank, set_bank="28")
+                    splitted_path = f"{file_path} (Custom Bank){extension}"
+                    extract_file_by_bank(zin, splitted_path, bank_to_keep=bank, set_bank="28")
+
+                    # Always consider the custom bank as the original
+                    path_of_original = splitted_path
                 
                 # If has no custom banks, this is a variant and we need to separate it
                 else:
-                    extract_file_by_bank(zin, f"{file_path} (Bank {bank}){extension}", bank_to_keep=bank)
+                    version = f" (Bank {bank})"
+                    
+                    # Some specific banks tend to be used for 8bit version of tracks
+                    if bank.startswith("0x") or bank == "1a" or bank == "b":
+                        version = " (8bit Version)"
+                        
+                    # Create a new file to store this seq
+                    splitted_path = f"{file_path}{version}{extension}"
+                    extract_file_by_bank(zin, splitted_path, bank_to_keep=bank)
+                    
+                    # If is not an 8bit version, set it to replace the original file
+                    if not path_of_original and not "(8bit Version)" in splitted_path:
+                        path_of_original = splitted_path
+                    
+                    # If we are creating a new file, then create a new entry in the database
+                    else:
+                        # Get the original entry to make a copy
+                        print("ADDING NEW ENTRY TO DATABASE: " + splitted_path)
+                        entry = next((x for x in database if path_comparison(x["file"], database_path)), None)
+                        
+                        # If we find it, then add it, but remove it's preview, since we do not have it yet
+                        if entry:
+                            database_path_root, database_path_ext = os.path.splitext(database_path)
+                            copied_entry = dict(entry)
+                            copied_entry["file"] = f"{database_path_root}{version}{database_path_ext}"
+                            copied_entry["song"] = entry["song"] + version
+                            copied_entry["preview"] = ""
+                            database.append(copied_entry)
 
-            # Notify we need to replace the old file!
-            was_fixed = True
             
     # Replace the old file with the new one
-    # if was_fixed: os.replace(f"{path}.bak", path)
-    return was_fixed
+    if path_of_original: os.replace(path_of_original, path)
+    return path_of_original != None
 
 def extract_file_by_bank(zin, new_file_path, set_bank = None, bank_to_keep = None):
     with zipfile.ZipFile(new_file_path, 'w') as zout:
