@@ -401,7 +401,11 @@ def extract_metadata_from_ootrs(archive, namelist) -> tuple[str, list, bool, boo
                 return seq_type, groups, usesCustomBank, usesCustomSamples, False
     raise EOFError("Couldn't find ootrs metadata in file!")
 
-
+mm_fanfare_categories = [
+    "8", "9", "10",
+    "122", "124", "137", "139", "13D", "13F", "141", "152", "155", "177",
+    "119", "108", "109", "120", "121", "178", "179", "17E", "17C", "12B"
+]
 def extract_metadata_from_mmrs(archive, namelist) -> tuple[str, list, bool, bool, bool]:
     for name in namelist:
         if name == 'categories.txt':
@@ -413,7 +417,7 @@ def extract_metadata_from_mmrs(archive, namelist) -> tuple[str, list, bool, bool
                 categories = [g.strip() for g in lines[0].replace('-', ',').split(',')] if len(lines) >= 1 else []
 
                 # Define the type by checking the categories
-                isFanfare = all(cat in ['8', '9', '10'] for cat in categories) and len(categories) > 0
+                isFanfare = all(cat in mm_fanfare_categories for cat in categories) and len(categories) > 0
                 seq_type = 'fanfare' if isFanfare else 'bgm'
 
                 # Check if uses custom banks and samples
