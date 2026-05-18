@@ -85,7 +85,7 @@ runs:
         path: "z64packer/z64_python_requirements.txt"
 
     - name: Run database fixer
-      run: python "z64packer/z64_database_fixer.py" --ci
+      run: python "z64packer/z64_database_fixer.py"
       shell: bash
     
     - name: Extract metadata from datasheet if there is any
