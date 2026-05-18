@@ -27,9 +27,10 @@ def detectSongs(repo_path):
         if not os.path.exists(propertiesPath):
             raise Exception('This is not an Z64 repository | Missing z64musicpacker.properties file')
     
-    with open(propertiesPath, encoding='utf-8') as propertiesFile:
+    with open(propertiesPath, encoding='utf-8-sig') as propertiesFile:
         properties = json.load(propertiesFile)
         binaries = properties['binaries']
+        previews = properties['previews']
 
         # Statistics
         valid_files = 0
@@ -47,13 +48,13 @@ def detectSongs(repo_path):
                 with open(gamesPath, 'w+') as f: f.write('[]')
 
             # First, open the games database
-            with open(gamesPath, 'r+', encoding='utf-8') as gamesFile:
+            with open(gamesPath, 'r+', encoding='utf-8-sig') as gamesFile:
                 print("OPENING GAME DATABASE FILE")
                 games = json.load(gamesFile)
                 games = list(filter(lambda g: isinstance(g, dict), games))
 
                 # Open the database, so we can modify it
-                with open(songsPath, 'r+', encoding='utf-8') as databaseFile:
+                with open(songsPath, 'r+', encoding='utf-8-sig') as databaseFile:
                     print("OPENING SONG DATABASE FILE")
                     database = json.load(databaseFile)
                     database = list(filter(lambda s: isinstance(s, dict), database))
@@ -139,19 +140,11 @@ def detectSongs(repo_path):
                                 # Extract data from the file
                                 type, categories, usesCustomBank, usesCustomSamples, usesFormmask = extract_metadata(path)
 
-                                # GAME MANAGEMENT
-                                # Update the games database
+                                # Get both game names: the entry name (the real one) and the path name (no prohibited characters, like colons)
+                                # If no game entry is found, we use the game path as a backup
                                 directories = directory.replace("\\","/").split('/')
-                                game = safe_list_get(directories, -1, "Unknown")
-
-                                #series = safe_list_get(directories, -2, "") # We only go 1 up the directories... We don't support series in series
-                                # We no longer support modifying the series trough here, that needs to be done manually
-                                # Only done for new games trhu folder structure
-                                # But the idea is to NOT use folder structure for this
-                                #else:
-                                #    print('Updating game to series: ' + series)
-                                #    games[gameIndex]["series"] = series
-
+                                game_path_name = safe_list_get(directories, -1, "Unknown")
+                                game_entry_name = next((x["game"] for x in games if path_comparison(x["game"], game_path_name)), game_path_name)
 
                                 # SONG MANAGEMENT
                                 # Check if the file is in the database
@@ -167,15 +160,23 @@ def detectSongs(repo_path):
                                     database[i]["usesCustomBank"] = usesCustomBank
                                     database[i]["usesCustomSamples"] = usesCustomSamples
                                     database[i]["usesFormmask"] = usesFormmask
+                                    database[i]["game"] = game_entry_name
 
                                     # Update the game, so we are not creating duplicates
-                                    game = database[i]["game"]
+                                    # game = database[i]["game"]
 
                                 # If is not there, add it!
                                 else:
                                     print('Adding missing file to DB: ' + database_path)
+                                    
+                                    # Search if a preview exists... it should be the same name as the file
+                                    preview_path = os.path.join(previews, database_path.replace('.ootrs', '').replace('.mmrs', ''))
+                                    if Path(preview_path + ".mp3").is_file(): preview_path += ".mp3"
+                                    elif Path(preview_path + ".ogg").is_file(): preview_path += ".ogg"
+                                    else: preview_path = "" # No preview :(
+
                                     database.append({
-                                        'game': game,
+                                        'game': game_entry_name,
                                         'song': filename.replace('.ootrs', '').replace('.mmrs', ''),
                                         'type': type,
                                         'categories': categories,
@@ -183,23 +184,24 @@ def detectSongs(repo_path):
                                         'usesCustomSamples': usesCustomSamples,
                                         'usesFormmask': usesFormmask,
                                         'uuid': str(uuid.uuid4()),
-                                        'file': database_path
+                                        'file': database_path,
+                                        'preview': preview_path.replace(previews, "")
                                     })
 
-                                # If it's not in the list, just add it
-                                gameDetectedInDatabase = any(x for x in games if path_comparison(x["game"], game))
+                                # If the game is not on the list, just add it
+                                gameDetectedInDatabase = any(x for x in games if path_comparison(x["game"], game_entry_name))
                                 if not gameDetectedInDatabase:
-                                    print('Adding missing game to DB: ' + game)
+                                    print('Adding missing game to DB: ' + game_entry_name)
                                     games.append({
-                                        "game": game
+                                        "game": game_entry_name
                                     })
 
                                 # Add this file to the main zip
                                 osPath = os.path.join(dirpath, filename)
                                 binariesZip.write(osPath)
 
-                            except Exception:
-                                print("An error ocurred while processing the file " + filename + ": " + traceback.format_exc())
+                            except Exception as e:
+                                print("An error ocurred while processing the file " + os.path.join(dirpath, filename) + ": " + traceback.format_exc())
                     
                     # Add the sentinel lines at the end to prevent merge conflicts
                     sentinel_line = "__SENTINEL__: ONLY ADD ENTRIES ABOVE THIS LINE TO PREVENT MERGE CONFLICTS. Oh also, don't delete it please thank you <3"
@@ -238,7 +240,8 @@ def safe_list_index(iterable, value, default = None):
     return default
 
 def path_comparison(a, b):
-    unsafeCharacters = r'[\\\/:*?"<>|]'
+    # Also remove dots, since those ones cannot be at the end of folders
+    unsafeCharacters = r'[\\\/\.:*?"<>|]'
     return re.sub(unsafeCharacters, '', a).lower() == re.sub(unsafeCharacters, '', b).lower()
 
 # ========= PROCESSING ==========
