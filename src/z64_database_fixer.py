@@ -162,6 +162,14 @@ def detectSongs(repo_path):
                                     database[i]["usesFormmask"] = usesFormmask
                                     database[i]["game"] = game_entry_name
 
+                                    if not database[i].get("preview"):
+                                        print("Missing preview detected: " + database_path)
+                                        preview_path = search_missing_preview(previews, database_path)
+                                        if preview_path:
+                                            database[i]["preview"] = preview_path
+                                            print("Fixed!")
+                                        else: print("Not found :(")
+
                                     # Update the game, so we are not creating duplicates
                                     # game = database[i]["game"]
 
@@ -170,10 +178,7 @@ def detectSongs(repo_path):
                                     print('Adding missing file to DB: ' + database_path)
                                     
                                     # Search if a preview exists... it should be the same name as the file
-                                    preview_path = os.path.join(previews, database_path.replace('.ootrs', '').replace('.mmrs', ''))
-                                    if Path(preview_path + ".mp3").is_file(): preview_path += ".mp3"
-                                    elif Path(preview_path + ".ogg").is_file(): preview_path += ".ogg"
-                                    else: preview_path = "" # No preview :(
+                                    preview_path = search_missing_preview(previews, database_path)
 
                                     database.append({
                                         'game': game_entry_name,
@@ -226,6 +231,13 @@ def detectSongs(repo_path):
         print(f"Empty folders removed: {empty_folders}")
 
     return True
+
+def search_missing_preview(previews_path, song_path):
+    preview_path = os.path.join(previews_path, song_path.replace('.ootrs', '').replace('.mmrs', ''))
+    if Path(preview_path + ".mp3").is_file(): preview_path += ".mp3"
+    elif Path(preview_path + ".ogg").is_file(): preview_path += ".ogg"
+    else: preview_path = "" # No preview :(
+    return preview_path
 
 def safe_list_get(list, idx, default):
   try:
