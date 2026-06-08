@@ -166,7 +166,7 @@ def detectSongs(repo_path):
                                         print("Missing preview detected: " + database_path)
                                         preview_path = search_missing_preview(previews, database_path)
                                         if preview_path:
-                                            database[i]["preview"] = preview_path
+                                            database[i]["preview"] = preview_path.replace(previews, "")
                                             print("Fixed!")
                                         else: print("Not found :(")
 
