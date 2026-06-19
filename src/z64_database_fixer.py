@@ -218,7 +218,7 @@ def detectSongs(repo_path):
                     json.dump(database, databaseFile, indent=2, ensure_ascii=False)
                     databaseFile.truncate()
 
-                 # Replace game database with this one
+                # Replace game database with this one
                 gamesFile.seek(0)
                 json.dump(games, gamesFile, indent=2, ensure_ascii=False)
                 gamesFile.truncate()
@@ -256,6 +256,9 @@ def path_comparison(a, b):
     unsafeCharacters = r'[\\\/\.:*?"<>|]'
     return re.sub(unsafeCharacters, '', a).lower() == re.sub(unsafeCharacters, '', b).lower()
 
+def is_seq(path):
+    return path.endswith(".zseq") or path.endswith(".seq") or path.endswith(".aseq")
+
 # ========= PROCESSING ==========
 
 def extract_metadata(path) -> tuple[str, list, bool, bool, bool]:
@@ -277,7 +280,7 @@ def fix_bank_stuffing(database, database_path, path) -> bool:
         namelist = zin.namelist()
 
         # Count the amount of zseq files we have... if they are more than 1, we have bank stuffing
-        seqs = [n for n in namelist if n.endswith('.zseq')]
+        seqs = [n for n in namelist if is_seq(n)]
         if len(seqs) > 1:
             print("BANK STUFFING: " + path + " Fixing...")
 
@@ -365,7 +368,7 @@ def extract_file_by_bank(zin, new_file_path, set_bank = None, bank_to_keep = Non
         for item in zin.infolist():
             buffer = zin.read(item)
             root, extension = os.path.splitext(item.filename)
-            if extension == '.zseq' or extension == '.zbank' or extension == '.bankmeta':
+            if is_seq(extension) or extension == '.zbank' or extension == '.bankmeta':
 
                 # If this is the first file we find, we are gonna keep this bank set
                 if not file_to_keep: file_to_keep = root
