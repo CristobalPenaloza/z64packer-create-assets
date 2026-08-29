@@ -160,9 +160,7 @@ def parse_messages(repo_path, releases_folder_path):
 if __name__ == '__main__':
     print("DISCRUB PARSER")
 
-    parser = argparse.ArgumentParser(
-        description="Receives a music path, and sets the loudness of each detected file for the Z64 packer database."
-    )
+    parser = argparse.ArgumentParser()
     parser.add_argument("--repo_path", default=".", help="The path to the z64packer repository. By default is the current directory.")
     parser.add_argument("--releases_folder_path", default=".", help="The path to the Discrub extraction.")
     args = parser.parse_args()

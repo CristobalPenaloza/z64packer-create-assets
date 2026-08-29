@@ -3,17 +3,30 @@ import json
 import os
 import re
 import zipfile
-import uuid
 import traceback
 import yaml
 import argparse
+import sequtils
 from pathlib import Path
 import faulthandler
 
 # Enable error line report
 faulthandler.enable()
 
-def detectSongs(repo_path):
+# Process the arguments
+parser = argparse.ArgumentParser(
+    description="Rebuilds the Z64 packer database, manages missing files, and fixes some known issues."
+)
+parser.add_argument("--repo_path", default=".", help="The path to the z64packer repository. By default is the current directory.")
+parser.add_argument("--disable_hashing", action=argparse.BooleanOptionalAction, help="Disables the hash detection, to speed up the process.")
+parser.add_argument("--disable_preview_detection", action=argparse.BooleanOptionalAction, help="Disables the missing preview detection, to speed up the process.")
+args = parser.parse_args()
+
+repo_path = args.repo_path
+disable_hashing = args.disable_hashing
+disable_preview_detection = args.disable_preview_detection
+
+def detectSongs():
     # Move to the specified path... by default we use the current directory
     os.chdir(repo_path)
 
@@ -35,6 +48,7 @@ def detectSongs(repo_path):
         # Statistics
         valid_files = 0
         missing_files = 0
+        error_files = 0
         bank_stuffing_files = 0
         empty_folders = 0
 
@@ -153,7 +167,7 @@ def detectSongs(repo_path):
 
                                 # If the file is in the DB, instead check it's integrity
                                 if detectedInDatabase:
-                                    # print('Updating file on DB: ' + database_path)
+                                    print('Updating file on DB: ' + database_path)
                                     i = [x["file"] for x in database].index(database_path)
                                     database[i]["type"] = type
                                     database[i]["categories"] = categories
@@ -161,8 +175,12 @@ def detectSongs(repo_path):
                                     database[i]["usesCustomSamples"] = usesCustomSamples
                                     database[i]["usesFormmask"] = usesFormmask
                                     database[i]["game"] = game_entry_name
+                                    if not disable_hashing: database[i]["hash"] = sequtils.get_md5(path) # Try to always update the hash, since a song can change any moment
 
-                                    if not database[i].get("preview"):
+                                    # Add any missing properties
+                                    if not "uuid" in database[i]: database[i]["uuid"] = sequtils.get_uuid()
+                                    if not "creationDate" in database[i]: database[i]["creationDate"] = sequtils.get_current_date_string()
+                                    if not database[i].get("preview") and not disable_preview_detection:
                                         print("Missing preview detected: " + database_path)
                                         preview_path = search_missing_preview(previews, database_path)
                                         if preview_path:
@@ -173,6 +191,13 @@ def detectSongs(repo_path):
                                     # Update the game, so we are not creating duplicates
                                     # game = database[i]["game"]
 
+                                    # TEST: CONVERT TO ARCHIVE.ORG LINKS
+                                    # https://archive.org/download/japas-jams/007%20The%20World%20is%20Not%20Enough/Courier%202.mp3
+                                    # preview = database[i].get("preview")
+                                    # if preview and not preview.startswith("https://"):
+                                    #    database[i]["preview"] = "https://archive.org/download/japas-jams/" + preview
+                                        
+
                                 # If is not there, add it!
                                 else:
                                     print('Adding missing file to DB: ' + database_path)
@@ -181,6 +206,8 @@ def detectSongs(repo_path):
                                     preview_path = search_missing_preview(previews, database_path)
 
                                     database.append({
+                                        'uuid': sequtils.get_uuid(),
+                                        'creationDate': sequtils.get_current_date_string(),
                                         'game': game_entry_name,
                                         'song': filename.replace('.ootrs', '').replace('.mmrs', ''),
                                         'type': type,
@@ -188,9 +215,9 @@ def detectSongs(repo_path):
                                         'usesCustomBank': usesCustomBank,
                                         'usesCustomSamples': usesCustomSamples,
                                         'usesFormmask': usesFormmask,
-                                        'uuid': str(uuid.uuid4()),
                                         'file': database_path,
-                                        'preview': preview_path.replace(previews, "")
+                                        'preview': preview_path.replace(previews, ""),
+                                        'hash': sequtils.get_md5(path),
                                     })
 
                                 # If the game is not on the list, just add it
@@ -207,6 +234,7 @@ def detectSongs(repo_path):
 
                             except Exception as e:
                                 print("An error ocurred while processing the file " + os.path.join(dirpath, filename) + ": " + traceback.format_exc())
+                                error_files += 1
                     
                     # Add the sentinel lines at the end to prevent merge conflicts
                     sentinel_line = "__SENTINEL__: ONLY ADD ENTRIES ABOVE THIS LINE TO PREVENT MERGE CONFLICTS. Oh also, don't delete it please thank you <3"
@@ -227,6 +255,7 @@ def detectSongs(repo_path):
         print("Statistics:")
         print(f"Valid files: {valid_files}")
         print(f"Missing files: {missing_files}")
+        print(f"Error files: {error_files}")
         print(f"Bank stuffing fixed: {bank_stuffing_files}")
         print(f"Empty folders removed: {empty_folders}")
 
@@ -449,15 +478,8 @@ def extract_metadata_from_mmrs(archive, namelist) -> tuple[str, list, bool, bool
     
 if __name__ == '__main__':
     print("RUNNING Z64 DATABASE FIXER!")
-    parser = argparse.ArgumentParser(
-        description="Rebuilds the Z64 packer database, manages missing files, and fixes some known issues."
-    )
-    parser.add_argument("--repo_path", default=".", help="The path to the z64packer repository. By default is the current directory.")
-    args = parser.parse_args()
-
-    repo_path = args.repo_path
-
-    result = detectSongs(repo_path)
+    
+    result = detectSongs()
 
     if result: print("Process completed succesfully!")
     else: print("An error occured")

@@ -21,7 +21,7 @@ def detectSongs(repo_path, music_folder_path):
 
         # Loop all entries
         for i, entry in enumerate(database):
-            preview_filename = entry['game'].replace(":", "") + " - " + entry['song'].replace(":", "") + ".mp3"
+            preview_filename = (entry['game'] + " - " + entry['song'] + ".mp3").replace(":", "").replace("∕", "").replace("/", "").replace("?", "")
             preview_path = os.path.join(music_folder_path, preview_filename)
 
             if os.path.exists(preview_path):
