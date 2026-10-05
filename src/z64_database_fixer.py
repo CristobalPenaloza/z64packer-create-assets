@@ -9,6 +9,7 @@ import argparse
 import sequtils
 from pathlib import Path
 import faulthandler
+from datetime import datetime, timezone
 
 # Enable error line report
 faulthandler.enable()
@@ -152,7 +153,7 @@ def detectSongs():
                                     bank_stuffing_files += fix_bank_stuffing(database, database_path, path)
 
                                 # Extract data from the file
-                                type, categories, usesCustomBank, usesCustomSamples, usesFormmask = extract_metadata(path)
+                                type, categories, usesCustomBank, usesCustomSamples, usesFormmask, isCrossGame = extract_metadata(path)
 
                                 # Get both game names: the entry name (the real one) and the path name (no prohibited characters, like colons)
                                 # If no game entry is found, we use the game path as a backup
@@ -174,6 +175,7 @@ def detectSongs():
                                     database[i]["usesCustomBank"] = usesCustomBank
                                     database[i]["usesCustomSamples"] = usesCustomSamples
                                     database[i]["usesFormmask"] = usesFormmask
+                                    database[i]["isCrossGame"] = isCrossGame
                                     database[i]["game"] = game_entry_name
                                     if not disable_hashing: database[i]["hash"] = sequtils.get_md5(path) # Try to always update the hash, since a song can change any moment
 
@@ -188,14 +190,24 @@ def detectSongs():
                                             print("Fixed!")
                                         else: print("Not found :(")
 
+
+                                    # TEST: REMOVE PREVIEWS FILES WITH A YOUTUBE LINK
+                                    # preview = database[i].get("preview")
+                                    # if preview.startswith("https://youtu") or preview.startswith("https://www.youtu"):
+                                    #     preview_path = os.path.join(previews, database_path.replace('.ootrs', '').replace('.mmrs', '')) + ".mp3"
+                                    #    print('Deleting preview... ' + preview_path)
+
+                                    #     if os.path.exists(preview_path):
+                                    #         os.remove(preview_path)
+
                                     # Update the game, so we are not creating duplicates
                                     # game = database[i]["game"]
 
                                     # TEST: CONVERT TO ARCHIVE.ORG LINKS
                                     # https://archive.org/download/japas-jams/007%20The%20World%20is%20Not%20Enough/Courier%202.mp3
-                                    # preview = database[i].get("preview")
-                                    # if preview and not preview.startswith("https://"):
-                                    #    database[i]["preview"] = "https://archive.org/download/japas-jams/" + preview
+                                    #preview = database[i].get("preview")
+                                    #if preview and not preview.startswith("https://") and database[i].get("creationDate").startswith("2026-09-11T"):
+                                    #    database[i]["preview"] = "https://archive.org/download/darunias-joy/" + preview
                                         
 
                                 # If is not there, add it!
@@ -215,6 +227,7 @@ def detectSongs():
                                         'usesCustomBank': usesCustomBank,
                                         'usesCustomSamples': usesCustomSamples,
                                         'usesFormmask': usesFormmask,
+                                        'isCrossGame': isCrossGame,
                                         'file': database_path,
                                         'preview': preview_path.replace(previews, ""),
                                         'hash': sequtils.get_md5(path),
@@ -290,7 +303,7 @@ def is_seq(path):
 
 # ========= PROCESSING ==========
 
-def extract_metadata(path) -> tuple[str, list, bool, bool, bool]:
+def extract_metadata(path) -> tuple[str, list, bool, bool, bool, bool]:
     archive = zipfile.ZipFile(path, 'r')
     namelist = archive.namelist()
     
@@ -412,7 +425,7 @@ def extract_file_by_bank(zin, new_file_path, set_bank = None, bank_to_keep = Non
             zout.writestr(item.filename, buffer)
 
 
-def extract_metadata_from_universal_yaml_format(archive, namelist) -> tuple[str, list, bool, bool, bool]:
+def extract_metadata_from_universal_yaml_format(archive, namelist) -> tuple[str, list, bool, bool, bool, bool]:
     for name in namelist:
         if name.endswith('.metadata'):
             with archive.open(name) as metadata_file:
@@ -425,12 +438,12 @@ def extract_metadata_from_universal_yaml_format(archive, namelist) -> tuple[str,
                 usesCustomBank = any(n.endswith('.zbank') for n in namelist)
                 usesCustomSamples = any(n.endswith('.zsound') for n in namelist)
                 usesFormmask = len(metadata.get('formmask', [])) > 0
+                isCrossGame = False # Don't remember how to get the bank... crin removed everything :c
 
-                return seq_type, groups, usesCustomBank, usesCustomSamples, usesFormmask
+                return seq_type, groups, usesCustomBank, usesCustomSamples, usesFormmask, isCrossGame
     raise EOFError("Couldn't find yaml metadata in file!")
 
-
-def extract_metadata_from_ootrs(archive, namelist) -> tuple[str, list, bool, bool, bool]:
+def extract_metadata_from_ootrs(archive, namelist) -> tuple[str, list, bool, bool, bool, bool]:
     for name in namelist:
         if name.endswith('.meta'):
             with archive.open(name) as meta_file:
@@ -444,8 +457,9 @@ def extract_metadata_from_ootrs(archive, namelist) -> tuple[str, list, bool, boo
                 # Check if uses custom banks and samples
                 usesCustomBank = any(n.endswith('.zbank') for n in namelist)
                 usesCustomSamples = any(n.endswith('.zsound') for n in namelist)
+                isCrossGame = sequtils.is_cross_game_bank(parse_bank(lines[1]), True)
 
-                return seq_type, groups, usesCustomBank, usesCustomSamples, False
+                return seq_type, groups, usesCustomBank, usesCustomSamples, False, isCrossGame
     raise EOFError("Couldn't find ootrs metadata in file!")
 
 mm_fanfare_categories = [
@@ -453,12 +467,14 @@ mm_fanfare_categories = [
     "122", "124", "137", "139", "13D", "13F", "141", "152", "155", "177",
     "119", "108", "109", "120", "121", "178", "179", "17E", "17C", "12B"
 ]
-def extract_metadata_from_mmrs(archive, namelist) -> tuple[str, list, bool, bool, bool]:
+
+def extract_metadata_from_mmrs(archive, namelist) -> tuple[str, list, bool, bool, bool, bool]:
     for name in namelist:
         if name == 'categories.txt':
             with archive.open(name) as categories_file:
                 lines = categories_file.readlines()
                 lines = [line.decode('utf8').rstrip() for line in lines]
+                bank = next((parse_bank(n.split('.')[0]) for n in namelist if sequtils.is_seq(n)), 28)
 
                 # Extract the categories
                 categories = [g.strip() for g in lines[0].replace('-', ',').split(',')] if len(lines) >= 1 else []
@@ -471,10 +487,14 @@ def extract_metadata_from_mmrs(archive, namelist) -> tuple[str, list, bool, bool
                 usesCustomBank = any(n.endswith('.zbank') for n in namelist)
                 usesCustomSamples = any(n.endswith('.zsound') for n in namelist)
                 usesFormmask = any(n.endswith('.formmask') for n in namelist)
+                isCrossGame = sequtils.is_cross_game_bank(bank, False)
 
-                return seq_type, categories, usesCustomBank, usesCustomSamples, usesFormmask
+                return seq_type, categories, usesCustomBank, usesCustomSamples, usesFormmask, isCrossGame
     raise EOFError("Couldn't find mmrs metadata in file!")
 
+def parse_bank(line):
+    if line.isdigit(): return int(line, base=16)
+    else: return 0x00
     
 if __name__ == '__main__':
     print("RUNNING Z64 DATABASE FIXER!")

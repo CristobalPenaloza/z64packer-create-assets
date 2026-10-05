@@ -15,7 +15,7 @@ def get_md5(path):
             # Make sure to clamp the main volume to zero, to get a consistent hash
             data = bytearray(seq.read())
             for i in range(len(data) - 1):
-                if data[i] == 0xDB: data[i + 1] = 0x00
+                if data[i] == 0xDB: data[i + 1] = 0x00 #TODO: Implement proper seq reader, because songs with multiple main volume commands can trip up this system
             return hashlib.md5(data).hexdigest()
 
 def get_current_date_string():
@@ -28,3 +28,25 @@ def get_safe_path(game, song):
     unsafe_characters = r'[\\\/:*?"<>|]'
     remove_trailing_dots = r'\.+$'
     return re.sub(remove_trailing_dots, "", re.sub(unsafe_characters, "", game)) + "/" + re.sub(unsafe_characters, "", song)
+
+def is_cross_game_bank(bank: int, is_ootrs: bool) -> bool:
+    if is_ootrs: return bank in ootrs_to_mm_bank_map.keys()
+    else: return bank in ootrs_to_mm_bank_map.values()
+
+ootrs_to_mm_bank_map = {
+    0x03: 0x03, # Hyrule Field
+    0x05: 0x04, # Market
+    0x08: 0x05, # Kakariko (Guitar)
+    0x09: 0x06, # Fairy Fountain
+    0x0D: 0x07, # Lon Lon Ranch
+    0x0E: 0x26, # Goron City
+    0x11: 0x08, # Horse Race
+    0x12: 0x09, # Warp Songs
+    0x14: 0x0A, # Shooting Gallery
+    0x15: 0x0B, # Zora's Domain
+    0x16: 0x0C, # Shop
+    0x1C: 0x0D, # Lakeside Laboratory
+    0x1D: 0x0E, # Koume and Kotake
+    0x23: 0x0F, # Fanfares
+    0x24: 0x10 # Owl
+}
