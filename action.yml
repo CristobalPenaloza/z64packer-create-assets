@@ -98,8 +98,8 @@ runs:
       run: |
         echo "Deleting scripts and commiting changes..."
         rm z64packer/z64_* || true
-        rm sequtils.py || true
-        rm -rf __pycache__ || true
+        rm z64packer/sequtils.py || true
+        rm -rf z64packer/__pycache__ || true
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email "<>"
         git add -A
