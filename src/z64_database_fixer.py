@@ -165,6 +165,7 @@ def detectSongs():
                                 # Check if the file is in the database
                                 # THIS COMPARISON NEEDS TO NOT CHECK FOR DOUBLE COLONS!
                                 detectedInDatabase = any(x for x in database if path_comparison(x["file"], database_path))
+                                gameDetectedInDatabase = any(x for x in games if path_comparison(x["game"], game_entry_name))
 
                                 # If the file is in the DB, instead check it's integrity
                                 if detectedInDatabase:
@@ -176,7 +177,6 @@ def detectSongs():
                                     database[i]["usesCustomSamples"] = usesCustomSamples
                                     database[i]["usesFormmask"] = usesFormmask
                                     database[i]["isCrossGame"] = isCrossGame
-                                    database[i]["game"] = game_entry_name
                                     if not disable_hashing: database[i]["hash"] = sequtils.get_md5(path) # Try to always update the hash, since a song can change any moment
 
                                     # Add any missing properties
@@ -190,6 +190,10 @@ def detectSongs():
                                             print("Fixed!")
                                         else: print("Not found :(")
 
+                                    # If the game was in the database, replace the entry!
+                                    # But if the game is new, use the name in the entry, since it may have special characters!
+                                    if gameDetectedInDatabase: database[i]["game"] = game_entry_name
+                                    else: game_entry_name = database[i]["game"]
 
                                     # TEST: REMOVE PREVIEWS FILES WITH A YOUTUBE LINK
                                     # preview = database[i].get("preview")
@@ -234,7 +238,6 @@ def detectSongs():
                                     })
 
                                 # If the game is not on the list, just add it
-                                gameDetectedInDatabase = any(x for x in games if path_comparison(x["game"], game_entry_name))
                                 if not gameDetectedInDatabase:
                                     print('Adding missing game to DB: ' + game_entry_name)
                                     games.append({
