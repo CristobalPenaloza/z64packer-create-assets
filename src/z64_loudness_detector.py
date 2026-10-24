@@ -21,8 +21,12 @@ def detectSongs(repo_path, music_folder_path):
 
         # Loop all entries
         for i, entry in enumerate(database):
-            preview_filename = (entry['game'] + " - " + entry['song'] + ".mp3").replace(":", "").replace("∕", "").replace("/", "").replace("?", "")
+            preview_filename = clean_path(entry['game'] + " - " + entry['song'] + ".mp3")
             preview_path = os.path.join(music_folder_path, preview_filename)
+
+            if not os.path.exists(preview_path):
+                preview_filename = clean_path(entry['game']) + "/" + clean_path(entry['song']) + ".mp3"
+                preview_path = os.path.join(music_folder_path, preview_filename)
 
             if os.path.exists(preview_path):
                 print(f"Detected: {preview_filename}")
@@ -41,7 +45,8 @@ def detectSongs(repo_path, music_folder_path):
 
     return True
 
-    
+def clean_path(path):
+    return path.replace(":", "").replace("∕", "").replace("/", "").replace("?", "")
 
 if __name__ == '__main__':
     print("SEARCHING LOUDNESS")

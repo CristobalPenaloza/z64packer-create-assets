@@ -210,8 +210,9 @@ def detectSongs():
                                     # TEST: CONVERT TO ARCHIVE.ORG LINKS
                                     # https://archive.org/download/japas-jams/007%20The%20World%20is%20Not%20Enough/Courier%202.mp3
                                     #preview = database[i].get("preview")
-                                    #if preview and not preview.startswith("https://") and database[i].get("creationDate").startswith("2026-09-11T"):
+                                    #if preview and not preview.startswith("https://") and database[i].get("creationDate").startswith("2026-10-20T"):
                                     #    database[i]["preview"] = "https://archive.org/download/darunias-joy/" + preview
+                                    #    database[i]["converters"] = ["Kevxs"]
                                         
 
                                 # If is not there, add it!
